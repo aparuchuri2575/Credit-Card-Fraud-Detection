@@ -1,0 +1,221 @@
+---
+title: "Credit Card Fraud Detection"
+author: "Abilash Paruchuri"
+date: "17/06/2022"
+output: 
+  word_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Summary
+There has been a dramatic increase in the use of credit cards due to rapid technological advancements. With these advances, e-payment and eCommerce systems have been adopted, which has contributed to the increase in the number of fraud cases associated with credit cards. Therefore, to curb this problem, there is a need to implement powerful mechanisms that help to detect these credit card frauds. This project, therefore, implements different machine learning algorithms like random forest and logistic regression to perform analysis and predictions on credit card fraud transactions. The data set implemented for this project is retrieved from the Kaggle.com website. In addition, the project has performed an extensive review of existing literature and models related to credit card fraud detection. A comparative study has been performed to understand the existing gap in this project. As a result, the project has implemented different models. Their performance was evaluated based on confusion matrix, precision, recall, and accuracy to identify the best model for the application of detecting and predicting credit card fraud transactions. 
+
+## Introduction
+Credit card fraud transactions can be defined as the unauthorized use of an account by an individual other than the authorized owner of that account (Patidar & Sharma, 2011). In most cases, there are a number of preventive measures that have been used to deal with credit card fraud. However, these measures have not been effective since more and more credit frauds are experienced. Therefore, this calls for implementing machine learning and data science to ensure the solution to credit card fraud is automated. This is because, with time, the patterns in credit card fraud often change, making it hard to track them, but with machine learning techniques, it will be easier. These machine learning algorithms help analyze all the authorized transactions and detect suspicious transactions in an automated manner. 
+
+## Literature Review
+In a study by Mittal & Tyagi (2019), the authors have proposed a hybrid approach that can be implemented in detecting credit card frauds through isolation forest and random forest algorithms in the identification of anomaly-based transactions. However, from this model, there was no confidentiality and privacy. In another study, they identified that for credit card fraud detection, the logistic regression model performs only best in regression problems and not in the real-time non-linear datasets, making it unsuitable for this operation. Xuan et al. (2018) identified that the Random Forest algorithm better detects credit card frauds. A study by Awoyemi et al. (2017) illustrated that constantly changing profiles and standard fraud transactions are the main two problems associated with credit card fraud detection. With the implementation of Naive Bayes, k-Nearest Neighbor, and logistic regression algorithms, k-Nearest Neighbor was identified as the best algorithm for detecting credit card frauds.
+However, from the previous research, there has been a gap in the research and analysis of credit card fraud detection. Previous systems' accuracy, confidentiality, and privacy have been an issue. Therefore this project intends to identify the most suitable technique that will have the highest accuracy and provide privacy in credit card fraud detection. 
+## Theory
+
+H1: For many financial institutions, they are always faced with several credits and debit fraud transactions.
+H2: There is an association between low accuracy detection systems and a higher number of fraudulent transactions in any financial company. 
+
+
+```{r echo=FALSE}
+#install.packages("caret")
+#install.packages("data.table")
+#install.packages("ranger")
+library(ranger)
+library(caret)
+library(data.table)
+library(dplyr)      # for data manipulation
+library(caTools)    # for splitting data into training and test set
+```
+
+
+## Data
+The dataset Creditcard.csv has been retrieved from https://www.kaggle.com/mlg-ulb/creditcardfraud. It includes:
+```{r echo=FALSE}
+Data_creditCard <- read.csv("creditcard.csv")
+head(Data_creditCard,6)
+
+```
+
+
+The dataset had to be explored to identify what stands out for preprocessing to build the machine learning models. 
+```{r}
+# exploring the creditCard data
+head(Data_creditCard)
+```
+
+From the data, it is clear that there are 28 variables that are anonymous, one amount column, one label column, and one time column. To identify the relation between the variables, a histogram has been created for visualization. 
+```{r}
+hist(Data_creditCard$Amount)
+```
+
+To ensure that the data was clean for analysis and classification, there was the need to check for ny missing values in the columns
+```{r}
+# check whether there are any missing values in columns
+colSums(is.na(Data_creditCard))
+```
+
+It is clear that there are no missing values in the columns for the dataset. 
+
+
+## Methodology
+
+Having identified that there are no missing values, the next thing was to identify what variables are essential and what variables need to be eliminated. Therefore, the first thing involve visualizing the transactions over time to identify if it is an important factor for analysis in this project. 
+```{r,echo=FALSE}
+Data_creditCard %>%
+  ggplot(aes(x = Time, fill = factor(Class))) + 
+  geom_histogram(bins = 100) + 
+  labs(x = "Time elapsed since first transcation (seconds)", y = "no. of transactions", title = "Distribution of transactions across time") +
+  facet_grid(Class ~ ., scales = 'free_y') + theme()
+```
+
+In the fraud detection, it is clear that time do not contribute so much and therefore was to be removed from the data. 
+To check if there is any correlation between amount and class, and all the variables a correlation plot is created. 
+```{r}
+#install.packages("corrplot")
+library(corrplot)
+# correlation of anonymous variables with amount and class
+correlation <- cor(Data_creditCard[, -1], method = "pearson")
+corrplot(correlation, number.cex = 1, method = "color", type = "full", tl.cex=0.7, tl.col="black")
+```
+
+
+It was identified that there is no correlation for most of the features. All the anonymous variables are independent to each other. 
+The Amount variable is normalized with mean 0 since all the anonymous variables are standardized. 
+```{r}
+# scaling the data using standardization and remove the first column (time) from the data set
+Data_creditCard$Amount <- scale(Data_creditCard$Amount)
+data_scaled <- Data_creditCard[, -c(1)]
+head(data_scaled)
+```
+
+
+```{r echo=FALSE}
+# change 'Class' variable to factor
+data_scaled$Class <- as.factor(data_scaled$Class)
+levels(data_scaled$Class) <- c("Not Fraud", "Fraud")
+```
+
+For preparation of creating the models and fitting, the dataset has been split in the ration of 80% training and 20% testing sets. 
+
+```{r, echo=FALSE}
+# split the data into training set and test set
+set.seed(101)
+split_data <- sample.split(data_scaled$Class, SplitRatio = 0.8)
+data_train <- subset(data_scaled, split_data == TRUE)
+data_test <- subset(data_scaled, split_data== FALSE)
+
+```
+
+The training data after split was visualized to identify how balanced the training set is. 
+```{r}
+# visualize the training data
+data_train %>% ggplot(aes(x = factor(Class), y = prop.table(stat(count)), fill = factor(Class))) +
+  geom_bar(position = "dodge") +
+  scale_y_continuous(labels = scales::percent) +
+  labs(x = 'Class', y = 'Percentage', title = 'Training Class distributions') +
+  theme_grey()
+```
+
+Data is heavily unbalanced. It is clear that there is 99% of non-fraudulent data. With this, the model might perform less accurately. Therefore, the data has been sampled through the use of Down sampling technique. 
+```{r }
+set.seed(90)
+down_data_train <- downSample(x = data_train[, -30],
+                         y = data_train$Class)
+table(down_data_train$Class) 
+```
+## Results
+
+A decision tree model was first created. From this model, it is identified that the v14 variable is a significant variable that is the most significant in separating the non-fraud and fraud transactions.
+```{r ec}
+#install.packages("rpart.plot")
+library(rpart)      #
+library(rpart.plot)
+DT <- rpart(Class ~ . , down_data_train, method = 'class')
+predicted_val <- predict(DT, down_data_train, type = 'class')
+probability <- predict(DT, down_data_train, type = 'prob')
+rpart.plot(DT)
+```
+
+Second, a Random Forest model has been created. The area under the ROC curve have been identified for the Random Forest model. This means that Random Forest hs an accuracy of 0.9628.
+```{r}
+#install.packages("pROC")
+library(Rborist) 
+library(pROC)  
+x = down_data_train[, -30]
+y = down_data_train[,30]
+
+rf <- Rborist(x, y, ntree = 1000, minNode = 20, maxLeaf = 13)
+
+
+rf_pred <- predict(rf, data_test[,-30], ctgCensus = "prob")
+prob <- rf_pred$prob
+roc(data_test$Class, prob[,2], plotit = TRUE, col = 'blue')
+```
+```{r}
+#install.packages("xgboost")
+library(xgboost)
+set.seed(40)
+
+#Convert class labels from factor to numeric
+labels <- down_data_train$Class
+y <- recode(labels, 'Not Fraud' = 0, "Fraud" = 1)
+xgbFit <- xgboost(data = data.matrix(down_data_train[,-30]), 
+ label = y,
+ eta = 0.1,
+ gamma = 0.1,
+ max_depth = 10, 
+ nrounds = 300, 
+ objective = "binary:logistic",
+ colsample_bytree = 0.6,
+ verbose = 0,
+ nthread = 7
+)
+```
+
+
+The XGBoost model has an accuracy of 0.9696.
+```{r}
+# XGBoost predictions
+pred_xgb <- predict(xgbFit, data.matrix(data_test[,-30]))
+roc(data_test$Class, pred_xgb)
+```
+
+Lastly, the project identifies the names of the variables that have a crucial role for fraud detection.
+```{r}
+names <- dimnames(data.matrix(down_data_train[,-30]))[[2]]
+
+# Compute feature importance matrix
+importance_matrix <- xgb.importance(names, model = xgbFit)
+# Nice graph
+xgb.plot.importance(importance_matrix[1:10,])
+
+```
+
+
+Similarly, as identified from the Decision Tree model, v14 has stood out to be a significant variable in identifying or distinguishing either transactions are fraud or non fraud. 
+
+
+## Conclusion
+
+The credit fraud prediction in this paper was a success. It was possible to identify the major factors that need to be considered to distinguish between fraud and non-fraud transactions. In addition, from the models, it was identified that the most suitable applicable model in detecting credit card fraud transactions is XGBoost model as it performed better that the Random Forest model. 
+
+# References
+Mittal, S., & Tyagi, S. (2019, January). Performance evaluation of machine learning algorithms for credit card fraud detection. In 2019 9th International Conference on Cloud Computing, Data Science & Engineering (Confluence) (pp. 320-324). IEEE.
+
+Xuan, S., Liu, G., Li, Z., Zheng, L., Wang, S., & Jiang, C. (2018, March). Random forest for credit card fraud detection. In 2018 IEEE 15th international conference on networking, sensing and control (ICNSC) (pp. 1-6). IEEE.
+
+Patidar, R., & Sharma, L. (2011). Credit card fraud detection using neural network. International Journal of Soft Computing and Engineering (IJSCE), 1(32-38).
+
+Awoyemi, J. O., Adetunmbi, A. O., & Oluwadare, S. A. (2017, October). Credit card fraud detection using machine learning techniques: A comparative analysis. In 2017 international conference on computing networking and informatics (ICCNI) (pp. 1-9). IEEE.
+
+
